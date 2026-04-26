@@ -26,7 +26,11 @@ export async function POST(request: Request) {
     const supabase = createSupabaseAdminClient();
     if (!supabase) {
       return NextResponse.json(
-        { ok: false, error: 'Supabase admin configuration is missing.' },
+        {
+          ok: false,
+          error:
+            'Supabase admin configuration is missing. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local.',
+        },
         { status: 500 }
       );
     }
