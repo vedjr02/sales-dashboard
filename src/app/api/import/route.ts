@@ -1,0 +1,62 @@
+import { NextResponse } from 'next/server';
+import { createSupabaseAdminClient } from '@/lib/supabaseAdmin';
+import { ImportEntity, mapImportRow } from '@/lib/dataImport';
+
+interface ImportRequestBody {
+  entity?: ImportEntity;
+  rows?: Array<Record<string, string>>;
+}
+
+const SUPPORTED_ENTITIES: ImportEntity[] = ['leads', 'opportunities', 'deals'];
+
+export async function POST(request: Request) {
+  try {
+    const body = (await request.json()) as ImportRequestBody;
+    const entity = body.entity;
+    const rows = body.rows;
+
+    if (!entity || !SUPPORTED_ENTITIES.includes(entity)) {
+      return NextResponse.json({ ok: false, error: 'Unsupported import entity.' }, { status: 400 });
+    }
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return NextResponse.json({ ok: false, error: 'No rows were provided for import.' }, { status: 400 });
+    }
+
+    const supabase = createSupabaseAdminClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { ok: false, error: 'Supabase admin configuration is missing.' },
+        { status: 500 }
+      );
+    }
+
+    const normalizedRows = rows
+      .map((row) => mapImportRow(entity, row))
+      .filter((row) => row !== null);
+
+    const skippedRows = rows.length - normalizedRows.length;
+    if (normalizedRows.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        imported: 0,
+        skipped: skippedRows,
+        message: 'Rows were skipped because required fields were missing.',
+      });
+    }
+
+    const { error } = await supabase.from(entity).insert(normalizedRows);
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      imported: normalizedRows.length,
+      skipped: skippedRows,
+      message: 'Import completed successfully.',
+    });
+  } catch {
+    return NextResponse.json({ ok: false, error: 'Unexpected import error.' }, { status: 500 });
+  }
+}

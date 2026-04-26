@@ -1,9 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import { AppShell } from '@/components/ui/AppShell';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { useToast } from '@/components/ui/ToastProvider';
+import { logActionEvent } from '@/services/actionEvents';
 
 const reps = [
   { name: 'Mia Carter', quota: '122%', meetings: 38, winRate: '42%' },
@@ -19,6 +22,65 @@ const coachingQueue = [
 ];
 
 export default function TeamPage() {
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const { showToast } = useToast();
+
+  async function openPlanner() {
+    setLoadingAction('open-planner');
+    try {
+      const content = [
+        '# 1:1 Planner',
+        '',
+        `Created: ${new Date().toLocaleString()}`,
+        '',
+        ...reps.map((rep) => `- ${rep.name}: discuss quota ${rep.quota} and win rate ${rep.winRate}`),
+      ].join('\n');
+
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `one-on-one-planner-${new Date().toISOString().slice(0, 10)}.md`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      const message = '1:1 planner downloaded.';
+      showToast('success', message);
+      await logActionEvent({ area: 'team', action: 'open_planner', status: 'success', detail: message });
+    } catch {
+      const message = 'Unable to open planner right now.';
+      showToast('error', message);
+      await logActionEvent({ area: 'team', action: 'open_planner', status: 'error', detail: message });
+    } finally {
+      setLoadingAction(null);
+    }
+  }
+
+  async function assignGoal() {
+    setLoadingAction('assign-goal');
+    const message = 'Goal assignment workflow started.';
+    showToast('success', message);
+    await logActionEvent({ area: 'team', action: 'assign_goal', status: 'success', detail: message });
+    setLoadingAction(null);
+  }
+
+  async function openCoachingPlan() {
+    setLoadingAction('open-coaching-plan');
+    try {
+      await navigator.clipboard.writeText(coachingQueue.join('\n'));
+      const message = 'Coaching plan copied to clipboard.';
+      showToast('success', message);
+      await logActionEvent({ area: 'team', action: 'open_coaching_plan', status: 'success', detail: message });
+    } catch {
+      const message = 'Could not copy coaching plan.';
+      showToast('error', message);
+      await logActionEvent({ area: 'team', action: 'open_coaching_plan', status: 'error', detail: message });
+    } finally {
+      setLoadingAction(null);
+    }
+  }
+
   return (
     <AppShell>
       <PageHeader
@@ -26,8 +88,8 @@ export default function TeamPage() {
         description="Performance cockpit for coaching, quota progress and execution health."
         actions={
           <>
-            <Button variant="outline" size="sm">1:1 Planner</Button>
-            <Button size="sm">Assign Goal</Button>
+            <Button variant="outline" size="sm" onClick={openPlanner} isLoading={loadingAction === 'open-planner'}>1:1 Planner</Button>
+            <Button size="sm" onClick={assignGoal} isLoading={loadingAction === 'assign-goal'}>Assign Goal</Button>
           </>
         }
       />
@@ -76,7 +138,7 @@ export default function TeamPage() {
                   {item}
                 </div>
               ))}
-              <Button variant="outline" size="sm" className="w-full">Open Coaching Plan</Button>
+              <Button variant="outline" size="sm" className="w-full" onClick={openCoachingPlan} isLoading={loadingAction === 'open-coaching-plan'}>Open Coaching Plan</Button>
             </CardContent>
           </Card>
 

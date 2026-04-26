@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { Lead, Opportunity, Deal, SalesMetrics, SalesActivity } from '@/types';
 
-const USE_MOCK_DASHBOARD_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DASHBOARD_DATA !== 'false';
+const USE_MOCK_DASHBOARD_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DASHBOARD_DATA === 'true';
 
 export class SalesService {
   // Leads
@@ -136,23 +136,6 @@ export class SalesService {
     return data;
   }
 
-  // Analytics
-  static async getSalesMetrics(period: 'daily' | 'weekly' | 'monthly'): Promise<SalesMetrics> {
-    // This would typically call a PostgreSQL function or aggregate data
-    // For now, returning a mock structure
-    return {
-      total_revenue: 125000,
-      monthly_revenue: 45000,
-      weekly_revenue: 12500,
-      deals_won: 8,
-      deals_lost: 2,
-      avg_deal_size: 15625,
-      win_rate: 0.8,
-      conversion_rate: 0.15,
-      pipeline_value: 250000,
-    };
-  }
-
   static async searchLeads(query: string) {
     const { data, error } = await supabase
       .from('leads')
@@ -161,18 +144,6 @@ export class SalesService {
 
     if (error) throw error;
     return data;
-  }
-
-  static subscribeToLeads(callback: (leads: Lead[]) => void) {
-    const subscription = supabase
-      .from('leads')
-      .on('*', (payload) => {
-        console.log('Lead changed:', payload);
-        // Refresh leads
-      })
-      .subscribe();
-
-    return subscription;
   }
 
   // Dashboard Metrics
@@ -248,7 +219,7 @@ export class SalesService {
     };
   }
 
-  static async getRevenueTrend(period: 'monthly' | 'quarterly' = 'monthly') {
+  static async getRevenueTrend() {
     if (USE_MOCK_DASHBOARD_DATA) {
       return [
         { name: 'Jan', value: 40000 },
@@ -270,8 +241,8 @@ export class SalesService {
       return [];
     }
 
-    const formatData = (deals: any[]) => {
-      const monthlyRevenue = deals.reduce((acc, deal) => {
+    const formatData = (deals: Array<{ close_date: string; value: number }>) => {
+      const monthlyRevenue = deals.reduce<Record<string, number>>((acc, deal) => {
         const month = new Date(deal.close_date).toLocaleString('default', { month: 'short' });
         acc[month] = (acc[month] || 0) + deal.value;
         return acc;
@@ -305,12 +276,12 @@ export class SalesService {
       return [];
     }
 
-    const pipelineData = data.reduce((acc, deal) => {
-      const stage = deal.status;
+    const pipelineData = data.reduce<Record<string, { value: number; deals: number }>>((acc, deal) => {
+      const stage = typeof deal.status === 'string' ? deal.status : 'unknown';
       if (!acc[stage]) {
         acc[stage] = { value: 0, deals: 0 };
       }
-      acc[stage].value += deal.value;
+      acc[stage].value += Number(deal.value) || 0;
       acc[stage].deals += 1;
       return acc;
     }, {});

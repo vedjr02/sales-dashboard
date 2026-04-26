@@ -1,9 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import { AppShell } from '@/components/ui/AppShell';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { useToast } from '@/components/ui/ToastProvider';
+import { logActionEvent } from '@/services/actionEvents';
 
 const templates = [
   { name: 'Executive Revenue Pack', cadence: 'Weekly', audience: 'Leadership' },
@@ -12,13 +15,59 @@ const templates = [
   { name: 'Win/Loss Narrative', cadence: 'Bi-weekly', audience: 'Product + Sales' },
 ];
 
-const exportsLog = [
+const INITIAL_EXPORTS_LOG = [
   { report: 'Executive Revenue Pack', format: 'PDF', requestedBy: 'Mia', status: 'Delivered' },
   { report: 'Pipeline Risk Digest', format: 'CSV', requestedBy: 'Ethan', status: 'Processing' },
   { report: 'Rep Performance Pulse', format: 'PDF', requestedBy: 'Noah', status: 'Delivered' },
 ];
 
 export default function ReportsPage() {
+  const [exportsLog, setExportsLog] = useState(INITIAL_EXPORTS_LOG);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const { showToast } = useToast();
+
+  async function scheduleReport() {
+    setLoadingAction('schedule-report');
+    const message = 'Report cadence scheduler opened.';
+    showToast('success', message);
+    await logActionEvent({ area: 'reports', action: 'schedule_report', status: 'success', detail: message });
+    setLoadingAction(null);
+  }
+
+  async function createReport() {
+    setLoadingAction('create-report');
+    setExportsLog((prev) => [
+      {
+        report: 'Custom Report',
+        format: 'PDF',
+        requestedBy: 'You',
+        status: 'Processing',
+      },
+      ...prev,
+    ]);
+    const message = 'Custom report created and queued.';
+    showToast('success', message);
+    await logActionEvent({ area: 'reports', action: 'create_report', status: 'success', detail: message });
+    setLoadingAction(null);
+  }
+
+  async function runTemplate(templateName: string) {
+    setLoadingAction(`run-template-${templateName}`);
+    setExportsLog((prev) => [
+      {
+        report: templateName,
+        format: 'PDF',
+        requestedBy: 'You',
+        status: 'Processing',
+      },
+      ...prev,
+    ]);
+    const message = `${templateName} queued for export.`;
+    showToast('success', message);
+    await logActionEvent({ area: 'reports', action: 'run_template', status: 'success', detail: message });
+    setLoadingAction(null);
+  }
+
   return (
     <AppShell>
       <PageHeader
@@ -26,8 +75,8 @@ export default function ReportsPage() {
         description="Automated reporting center with scheduling, exports and stakeholder delivery tracking."
         actions={
           <>
-            <Button variant="outline" size="sm">Schedule</Button>
-            <Button size="sm">Create Report</Button>
+            <Button variant="outline" size="sm" onClick={scheduleReport} isLoading={loadingAction === 'schedule-report'}>Schedule</Button>
+            <Button size="sm" onClick={createReport} isLoading={loadingAction === 'create-report'}>Create Report</Button>
           </>
         }
       />
@@ -43,7 +92,15 @@ export default function ReportsPage() {
                 <p className="font-medium text-slate-100">{template.name}</p>
                 <p className="mt-2 text-xs text-slate-400">Cadence: {template.cadence}</p>
                 <p className="text-xs text-slate-400">Audience: {template.audience}</p>
-                <Button variant="ghost" size="sm" className="mt-4 w-full">Run Now</Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-4 w-full"
+                  onClick={() => runTemplate(template.name)}
+                  isLoading={loadingAction === `run-template-${template.name}`}
+                >
+                  Run Now
+                </Button>
               </div>
             ))}
           </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sidebar } from '@/components/ui/Sidebar';
+import { GlobalDataUploadButton } from '@/components/sales/GlobalDataUploadButton';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -15,6 +16,7 @@ export function AppShell({ children }: AppShellProps) {
         <Sidebar />
         <main className="flex-1 overflow-auto px-4 pb-8 pt-5 md:px-8">{children}</main>
       </div>
+      <GlobalDataUploadButton />
     </div>
   );
 }

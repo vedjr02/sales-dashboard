@@ -1,10 +1,13 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { AppShell } from '@/components/ui/AppShell';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { useToast } from '@/components/ui/ToastProvider';
+import { logActionEvent } from '@/services/actionEvents';
 
 const pipelineVelocity = [
   { month: 'Jan', won: 11, cycle: 42 },
@@ -23,6 +26,56 @@ const segmentLift = [
 ];
 
 export default function AnalyticsPage() {
+  const [showComparison, setShowComparison] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const { showToast } = useToast();
+
+  const areaData = useMemo(
+    () =>
+      showComparison
+        ? pipelineVelocity.map((point) => ({ ...point, won: Math.max(0, point.won - 3) }))
+        : pipelineVelocity,
+    [showComparison]
+  );
+
+  async function handleComparePeriods() {
+    setLoadingAction('compare-periods');
+    setShowComparison((prev) => !prev);
+    const message = showComparison ? 'Switched to current period.' : 'Switched to previous period comparison.';
+    showToast('success', message);
+    await logActionEvent({ area: 'analytics', action: 'compare_periods', status: 'success', detail: message });
+    setLoadingAction(null);
+  }
+
+  async function buildDashboard() {
+    setLoadingAction('build-dashboard');
+    try {
+      const payload = {
+        generatedAt: new Date().toISOString(),
+        pipelineVelocity: areaData,
+        segmentContribution: segmentLift,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `analytics-dashboard-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      const message = 'Dashboard payload exported.';
+      showToast('success', message);
+      await logActionEvent({ area: 'analytics', action: 'build_dashboard', status: 'success', detail: message });
+    } catch {
+      const message = 'Unable to export dashboard payload.';
+      showToast('error', message);
+      await logActionEvent({ area: 'analytics', action: 'build_dashboard', status: 'error', detail: message });
+    } finally {
+      setLoadingAction(null);
+    }
+  }
+
   return (
     <AppShell>
       <PageHeader
@@ -30,8 +83,8 @@ export default function AnalyticsPage() {
         description="Measure funnel quality, speed and conversion uplift with board-level clarity."
         actions={
           <>
-            <Button variant="outline" size="sm">Compare Periods</Button>
-            <Button size="sm">Build Dashboard</Button>
+            <Button variant="outline" size="sm" onClick={handleComparePeriods} isLoading={loadingAction === 'compare-periods'}>Compare Periods</Button>
+            <Button size="sm" onClick={buildDashboard} isLoading={loadingAction === 'build-dashboard'}>Build Dashboard</Button>
           </>
         }
       />
@@ -43,7 +96,7 @@ export default function AnalyticsPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={pipelineVelocity}>
+              <AreaChart data={areaData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.2)" />
                 <XAxis dataKey="month" tick={{ fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: '#94a3b8' }} axisLine={false} tickLine={false} />

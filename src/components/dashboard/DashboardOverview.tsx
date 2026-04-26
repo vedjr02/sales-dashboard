@@ -1,29 +1,42 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { KPICard } from './KPICard';
 import { RevenueChart } from './RevenueChart';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { useToast } from '@/components/ui/ToastProvider';
 import { SalesService } from '@/services/sales';
+import { logActionEvent } from '@/services/actionEvents';
 import { SalesMetrics, SalesActivity } from '@/types';
+
+interface RevenuePoint {
+  name: string;
+  value: number;
+  [key: string]: string | number;
+}
+
+interface PipelineStage {
+  name: string;
+  value: number;
+  deals: number;
+}
 
 export function DashboardOverview() {
   const [metrics, setMetrics] = useState<SalesMetrics | null>(null);
-  const [revenueData, setRevenueData] = useState<any[]>([]);
-  const [pipelineData, setPipelineData] = useState<any[]>([]);
+  const [revenueData, setRevenueData] = useState<RevenuePoint[]>([]);
+  const [pipelineData, setPipelineData] = useState<PipelineStage[]>([]);
   const [recentActivity, setRecentActivity] = useState<SalesActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAllActivity, setShowAllActivity] = useState(false);
-  const [actionStatus, setActionStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const visibleActivity = showAllActivity ? recentActivity : recentActivity.slice(0, 3);
 
-  function clearStatusAfterDelay() {
-    window.setTimeout(() => setActionStatus(null), 2800);
-  }
-
   async function handleShareSnapshot() {
+    setLoadingAction('share-snapshot');
+    const canShare = typeof navigator.share === 'function';
     const snapshotText = [
       'Sales Intelligence Snapshot',
       `Total Revenue: $${metrics?.totalRevenue.value.toLocaleString() || '0'}`,
@@ -36,7 +49,7 @@ export function DashboardOverview() {
     ].join('\n');
 
     try {
-      if (navigator.share) {
+      if (canShare) {
         await navigator.share({
           title: 'Sales Dashboard Snapshot',
           text: snapshotText,
@@ -46,18 +59,20 @@ export function DashboardOverview() {
         await navigator.clipboard.writeText(snapshotText);
       }
 
-      setActionStatus({
-        type: 'success',
-        message: navigator.share ? 'Snapshot shared successfully.' : 'Snapshot copied to clipboard.',
-      });
-      clearStatusAfterDelay();
+      const message = canShare ? 'Snapshot shared successfully.' : 'Snapshot copied to clipboard.';
+      showToast('success', message);
+      await logActionEvent({ area: 'dashboard', action: 'share_snapshot', status: 'success', detail: message });
     } catch {
-      setActionStatus({ type: 'error', message: 'Unable to share snapshot. Please try again.' });
-      clearStatusAfterDelay();
+      const message = 'Unable to share snapshot. Please try again.';
+      showToast('error', message);
+      await logActionEvent({ area: 'dashboard', action: 'share_snapshot', status: 'error', detail: message });
+    } finally {
+      setLoadingAction(null);
     }
   }
 
-  function handleCreateBriefing() {
+  async function handleCreateBriefing() {
+    setLoadingAction('create-briefing');
     try {
       const topPipelineStage = pipelineData[0]?.name || 'N/A';
       const briefing = [
@@ -91,42 +106,63 @@ export function DashboardOverview() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      setActionStatus({ type: 'success', message: 'Briefing generated and downloaded.' });
-      clearStatusAfterDelay();
+      const message = 'Briefing generated and downloaded.';
+      showToast('success', message);
+      await logActionEvent({ area: 'dashboard', action: 'create_briefing', status: 'success', detail: message });
     } catch {
-      setActionStatus({ type: 'error', message: 'Unable to generate briefing right now.' });
-      clearStatusAfterDelay();
+      const message = 'Unable to generate briefing right now.';
+      showToast('error', message);
+      await logActionEvent({ area: 'dashboard', action: 'create_briefing', status: 'error', detail: message });
+    } finally {
+      setLoadingAction(null);
     }
   }
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true);
-        const [
-          metricsData,
-          revenueTrendData,
-          pipelineOverviewData,
-          recentActivityData,
-        ] = await Promise.all([
-          SalesService.getSalesMetrics(),
-          SalesService.getRevenueTrend(),
-          SalesService.getPipelineOverview(),
-          SalesService.getRecentActivity(),
-        ]);
-        setMetrics(metricsData);
-        setRevenueData(revenueTrendData);
-        setPipelineData(pipelineOverviewData);
-        setRecentActivity(recentActivityData);
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [
+        metricsData,
+        revenueTrendData,
+        pipelineOverviewData,
+        recentActivityData,
+      ] = await Promise.all([
+        SalesService.getSalesMetrics(),
+        SalesService.getRevenueTrend(),
+        SalesService.getPipelineOverview(),
+        SalesService.getRecentActivity(),
+      ]);
+      setMetrics(metricsData);
+      setRevenueData(revenueTrendData);
+      setPipelineData(pipelineOverviewData);
+      setRecentActivity(recentActivityData);
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+    } finally {
+      setLoading(false);
     }
-
-    fetchData();
   }, []);
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      void fetchData();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [fetchData]);
+
+  useEffect(() => {
+    const handleImported = () => {
+      void fetchData();
+    };
+
+    window.addEventListener('sales-data-imported', handleImported);
+    return () => {
+      window.removeEventListener('sales-data-imported', handleImported);
+    };
+  }, [fetchData]);
 
   return (
     <div className="space-y-6">
@@ -138,46 +174,35 @@ export function DashboardOverview() {
             <p className="mt-1 text-sm text-slate-300">Realtime pipeline performance, risk and momentum in one view.</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleShareSnapshot}>Share Snapshot</Button>
-            <Button size="sm" onClick={handleCreateBriefing}>Create Briefing</Button>
+            <Button variant="outline" size="sm" onClick={handleShareSnapshot} isLoading={loadingAction === 'share-snapshot'}>Share Snapshot</Button>
+            <Button size="sm" onClick={handleCreateBriefing} isLoading={loadingAction === 'create-briefing'}>Create Briefing</Button>
           </div>
         </div>
-        {actionStatus ? (
-          <div
-            className={`mt-3 rounded-xl border px-3 py-2 text-sm ${
-              actionStatus.type === 'success'
-                ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
-                : 'border-rose-400/30 bg-rose-500/10 text-rose-200'
-            }`}
-          >
-            {actionStatus.message}
-          </div>
-        ) : null}
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="Total Revenue"
-          value={`$${(metrics?.totalRevenue.value / 1000).toFixed(1)}k`}
+          value={`$${((metrics?.totalRevenue.value ?? 0) / 1000).toFixed(1)}k`}
           trend={metrics?.totalRevenue.trend}
           loading={loading}
         />
         <KPICard
           title="Deals Won"
-          value={metrics?.dealsWon.value.toString()}
+          value={(metrics?.dealsWon.value ?? 0).toString()}
           trend={metrics?.dealsWon.trend}
           loading={loading}
         />
         <KPICard
           title="Win Rate"
-          value={`${metrics?.winRate.value.toFixed(1)}%`}
+          value={`${(metrics?.winRate.value ?? 0).toFixed(1)}%`}
           trend={metrics?.winRate.trend}
           loading={loading}
         />
         <KPICard
           title="Avg Deal Size"
-          value={`$${(metrics?.avgDealSize.value / 1000).toFixed(1)}k`}
+          value={`$${((metrics?.avgDealSize.value ?? 0) / 1000).toFixed(1)}k`}
           trend={metrics?.avgDealSize.trend}
           loading={loading}
         />
