@@ -22,7 +22,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Data Aligner', href: '/data-aligner', icon: WandSparkles },
+  { label: 'Import Center', href: '/import-center', icon: WandSparkles },
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Leads', href: '/leads', icon: Users },
   { label: 'Opportunities', href: '/opportunities', icon: Target },
