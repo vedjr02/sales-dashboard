@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/ToastProvider';
-import { parseDatasetText } from '@/lib/dataImport';
+import { parseDatasetFile } from '@/lib/dataImport';
 
 interface GlobalImportSummary {
   leads: { imported: number; skipped: number };
@@ -27,8 +27,7 @@ export function GlobalDataUploadButton() {
     setIsImporting(true);
 
     try {
-      const text = await file.text();
-      const parsed = parseDatasetText(text, file.name);
+      const parsed = await parseDatasetFile(file);
 
       const response = await fetch('/api/import/global', {
         method: 'POST',
@@ -69,7 +68,7 @@ export function GlobalDataUploadButton() {
       <input
         ref={inputRef}
         type="file"
-        accept=".csv,.json,text/csv,application/json"
+        accept=".csv,.json,.xlsx,.xls,text/csv,application/json,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         onChange={handleFileSelected}
         className="hidden"
       />
@@ -82,7 +81,7 @@ export function GlobalDataUploadButton() {
           disabled={isImporting}
           className="shadow-[0_12px_28px_rgba(34,211,238,0.3)]"
         >
-          {isImporting ? 'Processing Upload...' : 'Global Upload CSV'}
+          {isImporting ? 'Processing Upload...' : 'Global Upload'}
         </Button>
       </div>
 

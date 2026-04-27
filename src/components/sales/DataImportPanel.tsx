@@ -5,7 +5,7 @@ import type { ChangeEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/ToastProvider';
-import { ImportEntity, parseDatasetText } from '@/lib/dataImport';
+import { ImportEntity, parseDatasetFile } from '@/lib/dataImport';
 
 interface DataImportPanelProps {
   entity: ImportEntity;
@@ -40,8 +40,7 @@ export function DataImportPanel({ entity, onImportComplete }: DataImportPanelPro
     setSummary(null);
 
     try {
-      const text = await file.text();
-      const parsed = parseDatasetText(text, file.name);
+      const parsed = await parseDatasetFile(file);
 
       const response = await fetch('/api/import', {
         method: 'POST',
@@ -89,12 +88,12 @@ export function DataImportPanel({ entity, onImportComplete }: DataImportPanelPro
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-slate-300">
-          Upload a CSV or JSON file. Supported fields are auto-mapped and missing aspects are left empty.
+          Upload CSV, JSON, or Excel files. Supported fields are auto-mapped and missing aspects are left empty.
         </p>
         <input
           ref={inputRef}
           type="file"
-          accept=".csv,.json,text/csv,application/json"
+          accept=".csv,.json,.xlsx,.xls,text/csv,application/json,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           onChange={handleFileSelected}
           className="block w-full text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-400/90 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-900 hover:file:bg-cyan-300"
           disabled={isImporting}

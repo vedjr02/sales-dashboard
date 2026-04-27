@@ -99,6 +99,62 @@ function parseJsonRows(text: string): Record<string, unknown>[] {
   return objectRows;
 }
 
+function mapRowsToDataset(rawRows: string[][], formatLabel: string): ParsedDataset {
+  if (rawRows.length < 2) {
+    throw new Error(`${formatLabel} file must include a header row and at least one data row.`);
+  }
+
+  const headers = rawRows[0].map((header) => normalizeKey(header));
+  const rows = rawRows.slice(1).map((row) => {
+    const normalized: Record<string, string> = {};
+    headers.forEach((header, idx) => {
+      normalized[header] = (row[idx] ?? '').trim();
+    });
+    return normalized;
+  });
+
+  return { rows, headers };
+}
+
+function isSpreadsheetFile(file: File) {
+  const lowerName = file.name.toLowerCase();
+  return (
+    lowerName.endsWith('.xlsx') ||
+    lowerName.endsWith('.xls') ||
+    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    file.type === 'application/vnd.ms-excel'
+  );
+}
+
+export async function parseDatasetFile(file: File): Promise<ParsedDataset> {
+  if (isSpreadsheetFile(file)) {
+    const { read, utils } = await import('xlsx');
+    const buffer = await file.arrayBuffer();
+    const workbook = read(buffer, { type: 'array', raw: false });
+    const firstSheet = workbook.SheetNames[0];
+
+    if (!firstSheet) {
+      throw new Error('The uploaded spreadsheet does not contain any sheets.');
+    }
+
+    const sheet = workbook.Sheets[firstSheet];
+    const sheetRows = utils.sheet_to_json<Array<string | number | boolean | null>>(sheet, {
+      header: 1,
+      raw: false,
+      defval: '',
+    });
+
+    const rows = sheetRows
+      .map((row) => row.map((cell) => (cell == null ? '' : String(cell).trim())))
+      .filter((row) => row.some((cell) => cell.length > 0));
+
+    return mapRowsToDataset(rows, 'Spreadsheet');
+  }
+
+  const text = await file.text();
+  return parseDatasetText(text, file.name);
+}
+
 export function parseDatasetText(rawText: string, fileName: string): ParsedDataset {
   const text = rawText.trim();
   if (!text) {
@@ -126,20 +182,7 @@ export function parseDatasetText(rawText: string, fileName: string): ParsedDatas
   }
 
   const csvRows = parseCsvRows(text);
-  if (csvRows.length < 2) {
-    throw new Error('CSV file must include a header row and at least one data row.');
-  }
-
-  const headers = csvRows[0].map((header) => normalizeKey(header));
-  const rows = csvRows.slice(1).map((row) => {
-    const normalized: Record<string, string> = {};
-    headers.forEach((header, idx) => {
-      normalized[header] = (row[idx] ?? '').trim();
-    });
-    return normalized;
-  });
-
-  return { rows, headers };
+  return mapRowsToDataset(csvRows, 'CSV');
 }
 
 function pickValue(record: Record<string, string>, aliases: string[]) {
@@ -154,9 +197,9 @@ function pickValue(record: Record<string, string>, aliases: string[]) {
 
 function scoreRowForLeads(row: Record<string, string>) {
   let score = 0;
-  if (pickValue(row, ['name', 'full_name', 'lead_name', 'contact_name'])) score += 2;
+  if (pickValue(row, ['name', 'full_name', 'lead_name', 'contact_name', 'contact', 'customer_name'])) score += 2;
   if (pickValue(row, ['email', 'email_address'])) score += 1;
-  if (pickValue(row, ['company', 'organization', 'account'])) score += 2;
+  if (pickValue(row, ['company', 'organization', 'account', 'account_name', 'customer', 'client'])) score += 2;
   if (pickValue(row, ['source', 'lead_source', 'channel'])) score += 2;
   if (pickValue(row, ['phone', 'phone_number', 'mobile'])) score += 1;
   return score;
@@ -164,8 +207,8 @@ function scoreRowForLeads(row: Record<string, string>) {
 
 function scoreRowForOpportunities(row: Record<string, string>) {
   let score = 0;
-  if (pickValue(row, ['name', 'opportunity_name', 'deal_name'])) score += 2;
-  if (pickValue(row, ['amount', 'arr'])) score += 2;
+  if (pickValue(row, ['name', 'opportunity_name', 'deal_name', 'account_name'])) score += 2;
+  if (pickValue(row, ['amount', 'arr', 'value', 'revenue', 'deal_value', 'sales'])) score += 2;
   if (pickValue(row, ['probability', 'confidence'])) score += 2;
   if (pickValue(row, ['lead_id', 'lead_reference'])) score += 2;
   if (pickValue(row, ['stage', 'opportunity_stage'])) score += 1;
@@ -174,11 +217,11 @@ function scoreRowForOpportunities(row: Record<string, string>) {
 
 function scoreRowForDeals(row: Record<string, string>) {
   let score = 0;
-  if (pickValue(row, ['name', 'deal_name', 'account_name'])) score += 2;
-  if (pickValue(row, ['value', 'amount', 'arr'])) score += 2;
-  if (pickValue(row, ['team_id', 'team'])) score += 2;
+  if (pickValue(row, ['name', 'deal_name', 'account_name', 'customer_name', 'company', 'client'])) score += 2;
+  if (pickValue(row, ['value', 'amount', 'arr', 'revenue', 'deal_value', 'sales', 'total'])) score += 2;
+  if (pickValue(row, ['team_id', 'team', 'region'])) score += 2;
   if (pickValue(row, ['created_by', 'sales_rep', 'owner'])) score += 2;
-  if (pickValue(row, ['status', 'deal_status'])) score += 1;
+  if (pickValue(row, ['status', 'deal_status', 'stage'])) score += 1;
   return score;
 }
 
@@ -189,6 +232,9 @@ export function detectEntityForRow(row: Record<string, string>): ImportEntity | 
 
   const bestScore = Math.max(leadScore, opportunityScore, dealScore);
   if (bestScore < 3) {
+    if (pickValue(row, ['value', 'amount', 'arr', 'revenue', 'deal_value', 'sales', 'total'])) {
+      return 'deals';
+    }
     return null;
   }
 
@@ -235,8 +281,41 @@ function toNumber(value: string, fallback: number) {
   if (!value) {
     return fallback;
   }
-  const parsed = Number(value.replace(/[^0-9.-]/g, ''));
+
+  const compact = value.replace(/,/g, '').trim();
+  const normalized = compact.startsWith('(') && compact.endsWith(')') ? `-${compact.slice(1, -1)}` : compact;
+  const parsed = Number(normalized.replace(/[^0-9.-]/g, ''));
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeStatus(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function normalizeLeadStatus(value: string) {
+  const normalized = normalizeStatus(value);
+  if (normalized === 'open') return 'new';
+  return LEAD_STATUSES.has(normalized) ? normalized : 'new';
+}
+
+function normalizeLeadSource(value: string) {
+  const normalized = normalizeStatus(value);
+  if (normalized === 'linkedin') return 'social';
+  return LEAD_SOURCES.has(normalized) ? normalized : 'website';
+}
+
+function normalizeOpportunityStage(value: string) {
+  const normalized = normalizeStatus(value);
+  if (normalized === 'won' || normalized === 'closedwon') return 'closed_won';
+  if (normalized === 'lost' || normalized === 'closedlost') return 'closed_lost';
+  return OPPORTUNITY_STAGES.has(normalized) ? normalized : 'prospecting';
+}
+
+function normalizeDealStatus(value: string) {
+  const normalized = normalizeStatus(value);
+  if (normalized === 'closed_won' || normalized === 'closedwon' || normalized === 'won_deal') return 'won';
+  if (normalized === 'closed_lost' || normalized === 'closedlost') return 'lost';
+  return DEAL_STATUSES.has(normalized) ? normalized : 'pipeline';
 }
 
 function normalizeDate(value: string, fallback: string) {
@@ -255,65 +334,60 @@ export function mapImportRow(entity: ImportEntity, row: Record<string, string>) 
   const now = new Date().toISOString();
 
   if (entity === 'leads') {
-    const name = pickValue(row, ['name', 'full_name', 'lead_name', 'lead', 'contact_name']);
+    const name = pickValue(row, ['name', 'full_name', 'lead_name', 'lead', 'contact_name', 'contact', 'customer_name']);
     if (!name) {
       return null;
     }
-
-    const statusRaw = pickValue(row, ['status', 'stage', 'lead_status']).toLowerCase();
-    const sourceRaw = pickValue(row, ['source', 'lead_source', 'channel']).toLowerCase();
 
     return {
       name,
       email: pickValue(row, ['email', 'email_address']),
       phone: pickValue(row, ['phone', 'phone_number', 'mobile']),
-      company: pickValue(row, ['company', 'organization', 'account']) || 'Unknown Company',
-      status: LEAD_STATUSES.has(statusRaw) ? statusRaw : 'new',
-      source: LEAD_SOURCES.has(sourceRaw) ? sourceRaw : 'website',
+      company: pickValue(row, ['company', 'organization', 'account', 'account_name', 'customer', 'client']) || 'Unknown Company',
+      status: normalizeLeadStatus(pickValue(row, ['status', 'stage', 'lead_status'])),
+      source: normalizeLeadSource(pickValue(row, ['source', 'lead_source', 'channel'])),
       assigned_to: pickValue(row, ['assigned_to', 'owner', 'assigned_user']),
-      created_at: normalizeDate(pickValue(row, ['created_at', 'created_on']), now),
-      updated_at: normalizeDate(pickValue(row, ['updated_at', 'updated_on']), now),
+      created_at: normalizeDate(pickValue(row, ['created_at', 'created_on', 'created', 'date']), now),
+      updated_at: normalizeDate(pickValue(row, ['updated_at', 'updated_on', 'updated']), now),
     };
   }
 
   if (entity === 'opportunities') {
-    const name = pickValue(row, ['name', 'opportunity_name', 'deal_name', 'account_name']);
+    const name = pickValue(row, ['name', 'opportunity_name', 'deal_name', 'account_name', 'company', 'client']);
     if (!name) {
       return null;
     }
 
-    const stageRaw = pickValue(row, ['stage', 'status', 'opportunity_stage']).toLowerCase();
-
     return {
       name,
       lead_id: pickValue(row, ['lead_id', 'lead', 'lead_reference']) || crypto.randomUUID(),
-      amount: toNumber(pickValue(row, ['amount', 'value', 'arr']), 0),
-      currency: pickValue(row, ['currency']) || 'USD',
-      stage: OPPORTUNITY_STAGES.has(stageRaw) ? stageRaw : 'prospecting',
-      close_date: normalizeDate(pickValue(row, ['close_date', 'close', 'expected_close_date']), now),
+      amount: toNumber(pickValue(row, ['amount', 'value', 'arr', 'revenue', 'deal_value', 'sales', 'total']), 0),
+      currency: pickValue(row, ['currency', 'currency_code']) || 'USD',
+      stage: normalizeOpportunityStage(pickValue(row, ['stage', 'status', 'opportunity_stage'])),
+      close_date: normalizeDate(pickValue(row, ['close_date', 'close', 'expected_close_date', 'date']), now),
       probability: toNumber(pickValue(row, ['probability', 'confidence']), 50),
       assigned_to: pickValue(row, ['assigned_to', 'owner', 'assigned_user']),
-      created_at: normalizeDate(pickValue(row, ['created_at', 'created_on']), now),
-      updated_at: normalizeDate(pickValue(row, ['updated_at', 'updated_on']), now),
+      created_at: normalizeDate(pickValue(row, ['created_at', 'created_on', 'created']), now),
+      updated_at: normalizeDate(pickValue(row, ['updated_at', 'updated_on', 'updated']), now),
     };
   }
 
-  const name = pickValue(row, ['name', 'deal_name', 'account_name', 'opportunity_name']);
+  const name =
+    pickValue(row, ['name', 'deal_name', 'account_name', 'opportunity_name', 'company', 'customer_name', 'client']) ||
+    `Imported Deal ${new Date().toISOString().slice(0, 10)}`;
   if (!name) {
     return null;
   }
 
-  const statusRaw = pickValue(row, ['status', 'deal_status', 'stage']).toLowerCase();
-
   return {
     name,
-    value: toNumber(pickValue(row, ['value', 'amount', 'arr']), 0),
-    currency: pickValue(row, ['currency']) || 'USD',
-    status: DEAL_STATUSES.has(statusRaw) ? statusRaw : 'pipeline',
-    close_date: normalizeDate(pickValue(row, ['close_date', 'close', 'expected_close_date']), now),
-    team_id: pickValue(row, ['team_id', 'team']) || 'unassigned',
+    value: toNumber(pickValue(row, ['value', 'amount', 'arr', 'revenue', 'deal_value', 'sales', 'total']), 0),
+    currency: pickValue(row, ['currency', 'currency_code']) || 'USD',
+    status: normalizeDealStatus(pickValue(row, ['status', 'deal_status', 'stage'])),
+    close_date: normalizeDate(pickValue(row, ['close_date', 'close', 'expected_close_date', 'date']), now),
+    team_id: pickValue(row, ['team_id', 'team', 'region']) || 'unassigned',
     created_by: pickValue(row, ['created_by', 'owner', 'sales_rep']) || 'system',
-    created_at: normalizeDate(pickValue(row, ['created_at', 'created_on']), now),
-    updated_at: normalizeDate(pickValue(row, ['updated_at', 'updated_on']), now),
+    created_at: normalizeDate(pickValue(row, ['created_at', 'created_on', 'created']), now),
+    updated_at: normalizeDate(pickValue(row, ['updated_at', 'updated_on', 'updated']), now),
   };
 }
