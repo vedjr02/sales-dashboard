@@ -40,6 +40,7 @@ export function GlobalDataUploadButton() {
         error?: string;
         summary?: GlobalImportSummary;
         importedTotal?: number;
+        warnings?: string[];
       };
 
       if (!response.ok || !result.ok || !result.summary) {
@@ -47,6 +48,10 @@ export function GlobalDataUploadButton() {
       }
 
       window.dispatchEvent(new CustomEvent('sales-data-imported', { detail: result.summary }));
+
+      if (Array.isArray(result.warnings) && result.warnings.length > 0) {
+        showToast('success', `Imported with warnings: ${result.warnings.join(' ')}`);
+      }
 
       showToast(
         'success',

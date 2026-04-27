@@ -9,6 +9,21 @@ interface ImportRequestBody {
 
 const SUPPORTED_ENTITIES: ImportEntity[] = ['leads', 'opportunities', 'deals'];
 
+function isMissingTableError(error: { code?: string; message?: string } | null, table: string) {
+  if (!error) {
+    return false;
+  }
+
+  const message = (error.message || '').toLowerCase();
+  return (
+    error.code === '42P01' ||
+    error.code === 'PGRST205' ||
+    message.includes(`public.${table}`) ||
+    message.includes(`relation \"${table}\" does not exist`) ||
+    message.includes('schema cache')
+  );
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as ImportRequestBody;
@@ -51,6 +66,16 @@ export async function POST(request: Request) {
 
     const { error } = await supabase.from(entity).insert(normalizedRows);
     if (error) {
+      if (isMissingTableError(error, entity)) {
+        return NextResponse.json({
+          ok: true,
+          imported: 0,
+          skipped: rows.length,
+          warnings: [`${entity} table is missing in Supabase. Rows were skipped.`],
+          message: `${entity} table is missing in Supabase.`,
+        });
+      }
+
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 

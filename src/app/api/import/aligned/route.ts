@@ -7,6 +7,21 @@ interface AlignedImportRequestBody {
   deals?: Array<Record<string, unknown>>;
 }
 
+function isMissingTableError(error: { code?: string; message?: string } | null, table: string) {
+  if (!error) {
+    return false;
+  }
+
+  const message = (error.message || '').toLowerCase();
+  return (
+    error.code === '42P01' ||
+    error.code === 'PGRST205' ||
+    message.includes(`public.${table}`) ||
+    message.includes(`relation \"${table}\" does not exist`) ||
+    message.includes('schema cache')
+  );
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as AlignedImportRequestBody;
@@ -31,36 +46,65 @@ export async function POST(request: Request) {
       );
     }
 
+    const warnings: string[] = [];
+    let importedLeads = 0;
+    let importedOpportunities = 0;
+    let importedDeals = 0;
+
     if (leads.length > 0) {
       const { error } = await supabase.from('leads').insert(leads);
       if (error) {
-        return NextResponse.json({ ok: false, error: error.message, entity: 'leads' }, { status: 500 });
+        if (isMissingTableError(error, 'leads')) {
+          warnings.push('Leads table is missing in Supabase. Leads rows were skipped.');
+        } else {
+          return NextResponse.json({ ok: false, error: error.message, entity: 'leads' }, { status: 500 });
+        }
+      } else {
+        importedLeads = leads.length;
       }
     }
 
     if (opportunities.length > 0) {
       const { error } = await supabase.from('opportunities').insert(opportunities);
       if (error) {
-        return NextResponse.json({ ok: false, error: error.message, entity: 'opportunities' }, { status: 500 });
+        if (isMissingTableError(error, 'opportunities')) {
+          warnings.push('Opportunities table is missing in Supabase. Opportunities rows were skipped.');
+        } else {
+          return NextResponse.json({ ok: false, error: error.message, entity: 'opportunities' }, { status: 500 });
+        }
+      } else {
+        importedOpportunities = opportunities.length;
       }
     }
 
     if (deals.length > 0) {
       const { error } = await supabase.from('deals').insert(deals);
       if (error) {
-        return NextResponse.json({ ok: false, error: error.message, entity: 'deals' }, { status: 500 });
+        if (isMissingTableError(error, 'deals')) {
+          warnings.push('Deals table is missing in Supabase. Deals rows were skipped.');
+        } else {
+          return NextResponse.json({ ok: false, error: error.message, entity: 'deals' }, { status: 500 });
+        }
+      } else {
+        importedDeals = deals.length;
       }
     }
+
+    const importedTotal = importedLeads + importedOpportunities + importedDeals;
 
     return NextResponse.json({
       ok: true,
       summary: {
-        leads: { imported: leads.length },
-        opportunities: { imported: opportunities.length },
-        deals: { imported: deals.length },
+        leads: { imported: importedLeads },
+        opportunities: { imported: importedOpportunities },
+        deals: { imported: importedDeals },
       },
-      importedTotal: totalRows,
-      message: 'Aligned data imported successfully.',
+      importedTotal,
+      warnings,
+      message:
+        warnings.length > 0
+          ? 'Aligned data imported partially. Some entities were skipped because their table is missing in Supabase.'
+          : 'Aligned data imported successfully.',
     });
   } catch {
     return NextResponse.json({ ok: false, error: 'Unexpected aligned import error.' }, { status: 500 });

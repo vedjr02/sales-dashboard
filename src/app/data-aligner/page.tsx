@@ -106,6 +106,7 @@ export default function DataAlignerPage() {
         ok?: boolean;
         error?: string;
         importedTotal?: number;
+        warnings?: string[];
       };
 
       if (!response.ok || !result.ok) {
@@ -113,6 +114,9 @@ export default function DataAlignerPage() {
       }
 
       window.dispatchEvent(new CustomEvent('sales-data-imported'));
+      if (Array.isArray(result.warnings) && result.warnings.length > 0) {
+        showToast('success', `Imported with warnings: ${result.warnings.join(' ')}`);
+      }
       showToast('success', `Aligned upload complete. Imported ${result.importedTotal ?? 0} records.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to upload aligned data.';
