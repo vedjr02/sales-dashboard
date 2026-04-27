@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  WandSparkles,
   LayoutDashboard,
   Users,
   Target,
@@ -21,6 +22,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { label: 'Data Aligner', href: '/data-aligner', icon: WandSparkles },
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Leads', href: '/leads', icon: Users },
   { label: 'Opportunities', href: '/opportunities', icon: Target },

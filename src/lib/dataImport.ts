@@ -32,11 +32,28 @@ function normalizeKey(value: string) {
     .replace(/^_+|_+$/g, '');
 }
 
+function detectCsvDelimiter(text: string) {
+  const firstLine = text
+    .split(/\r\n|\n|\r/)
+    .find((line) => line.trim().length > 0) || '';
+
+  const candidates = [',', ';', '\t', '|'] as const;
+  const scored = candidates.map((delimiter) => {
+    const matches = firstLine.split(delimiter).length;
+    return { delimiter, matches };
+  });
+
+  scored.sort((a, b) => b.matches - a.matches);
+  const best = scored[0];
+  return best.matches > 1 ? best.delimiter : ',';
+}
+
 function parseCsvRows(text: string): string[][] {
   const rows: string[][] = [];
   let currentRow: string[] = [];
   let currentCell = '';
   let inQuotes = false;
+  const delimiter = detectCsvDelimiter(text);
 
   for (let i = 0; i < text.length; i += 1) {
     const char = text[i];
@@ -52,7 +69,7 @@ function parseCsvRows(text: string): string[][] {
       continue;
     }
 
-    if (!inQuotes && char === ',') {
+    if (!inQuotes && char === delimiter) {
       currentRow.push(currentCell.trim());
       currentCell = '';
       continue;
