@@ -3,42 +3,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  WandSparkles,
-  LayoutDashboard,
-  Users,
-  Target,
-  Handshake,
-  LineChart,
-  FileBarChart,
-  UserSquare2,
-  Settings,
-} from 'lucide-react';
-
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
-
-const navItems: NavItem[] = [
-  { label: 'Import Center', href: '/import-center', icon: WandSparkles },
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Leads', href: '/leads', icon: Users },
-  { label: 'Opportunities', href: '/opportunities', icon: Target },
-  { label: 'Deals', href: '/deals', icon: Handshake },
-  { label: 'Analytics', href: '/analytics', icon: LineChart },
-  { label: 'Reports', href: '/reports', icon: FileBarChart },
-  { label: 'Team', href: '/team', icon: UserSquare2 },
-  { label: 'Settings', href: '/settings', icon: Settings },
-];
+import { LayoutDashboard } from 'lucide-react';
+import { navigationItems } from '@/config/navigation';
 
 export function Sidebar() {
   const pathname = usePathname();
 
   return (
     <aside className="glass hidden w-72 min-h-screen flex-col border-r border-slate-700/30 md:flex">
-      {/* Logo */}
       <div className="border-b border-slate-700/40 p-6">
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-slate-100">
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-400/20 text-cyan-200">
@@ -49,9 +21,8 @@ export function Sidebar() {
         <p className="mt-1 text-sm text-slate-400">Sales Intelligence Platform</p>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
-        {navItems.map((item) => {
+      <nav className="flex-1 space-y-2 p-4">
+        {navigationItems.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
           return (
@@ -75,13 +46,12 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* User Profile */}
       <div className="border-t border-slate-700/40 p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/25 text-cyan-100">
             <span className="text-sm font-bold">JD</span>
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-slate-100">John Doe</p>
             <p className="truncate text-xs text-slate-400">Sales Manager</p>
           </div>

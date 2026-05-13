@@ -5,6 +5,7 @@ import { AppShell } from '@/components/ui/AppShell';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { SkeletonKanban, SkeletonTable, SkeletonText } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { logActionEvent } from '@/services/actionEvents';
 import { SalesService } from '@/services/sales';
@@ -118,7 +119,19 @@ export default function OpportunitiesPage() {
 
       <div className="grid gap-6 2xl:grid-cols-[1.7fr_1fr]">
         <div className="space-y-4">
-          {isLoading ? <p className="text-sm text-slate-400">Loading opportunity data...</p> : null}
+          {isLoading ? (
+            <>
+              <SkeletonKanban columns={3} cardsPerColumn={2} />
+              <Card>
+                <CardHeader>
+                  <CardTitle>Opportunity Table</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <SkeletonTable columns={6} rows={6} />
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
           {!isLoading && stageGroups.length === 0 ? (
             <Card>
               <CardContent>
@@ -208,15 +221,21 @@ export default function OpportunitiesPage() {
               <CardTitle>Opportunity Insights</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-slate-300">
-              <p>Total opportunities: {analytics.totalCount}</p>
-              <p>
-                Average amount:{' '}
-                {analytics.avgDealSize != null ? `$${Math.round(analytics.avgDealSize).toLocaleString()}` : 'No data to represent here'}
-              </p>
-              <p>
-                Average confidence:{' '}
-                {analytics.avgProbability != null ? `${Math.round(analytics.avgProbability)}%` : 'No data to represent here'}
-              </p>
+              {isLoading ? (
+                <SkeletonText lines={4} />
+              ) : (
+                <>
+                  <p>Total opportunities: {analytics.totalCount}</p>
+                  <p>
+                    Average amount:{' '}
+                    {analytics.avgDealSize != null ? `$${Math.round(analytics.avgDealSize).toLocaleString()}` : 'No data to represent here'}
+                  </p>
+                  <p>
+                    Average confidence:{' '}
+                    {analytics.avgProbability != null ? `${Math.round(analytics.avgProbability)}%` : 'No data to represent here'}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

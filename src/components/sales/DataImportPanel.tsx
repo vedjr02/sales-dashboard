@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Skeleton, SkeletonText } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { ImportEntity, parseDatasetFile } from '@/lib/dataImport';
 
@@ -98,7 +99,19 @@ export function DataImportPanel({ entity, onImportComplete }: DataImportPanelPro
           className="block w-full text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-400/90 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-900 hover:file:bg-cyan-300"
           disabled={isImporting}
         />
-        {summary ? (
+        {isImporting ? (
+          <div
+            className="rounded-xl border border-slate-700/40 bg-slate-900/25 p-4"
+            role="status"
+            aria-label="Importing file"
+          >
+            <div className="flex justify-center py-1">
+              <Skeleton className="h-10 w-10 rounded-full" />
+            </div>
+            <SkeletonText lines={3} className="mt-3" />
+          </div>
+        ) : null}
+        {!isImporting && summary ? (
           <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/10 p-3 text-sm text-cyan-100">
             <p>{summary.message}</p>
             <p>Imported: {summary.imported}</p>

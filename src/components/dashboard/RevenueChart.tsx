@@ -1,6 +1,7 @@
 import React from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
+import { SkeletonChart } from '@/components/ui/Skeleton';
 
 interface ChartDataPoint {
   name: string;
@@ -14,6 +15,7 @@ interface RevenueChartProps {
   type?: 'line' | 'bar';
   dataKey?: string;
   height?: number;
+  loading?: boolean;
 }
 
 export function RevenueChart({
@@ -22,7 +24,21 @@ export function RevenueChart({
   type = 'line',
   dataKey = 'value',
   height = 300,
+  loading = false,
 }: RevenueChartProps) {
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SkeletonChart height={height} />
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (!data || data.length === 0) {
     return (
       <Card>

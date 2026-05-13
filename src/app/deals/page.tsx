@@ -5,6 +5,7 @@ import { AppShell } from '@/components/ui/AppShell';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { SkeletonCardRows, SkeletonPipelineRows, SkeletonTable } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { logActionEvent } from '@/services/actionEvents';
 import { SalesService } from '@/services/sales';
@@ -103,7 +104,9 @@ export default function DealsPage() {
             <CardTitle>Deal Desk</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoading ? <p className="text-sm text-slate-400">Loading deal data...</p> : null}
+            {isLoading ? (
+              <SkeletonTable columns={6} rows={7} />
+            ) : null}
             {!isLoading && deals.length === 0 ? (
               <p className="text-sm text-slate-400">No data to represent here yet. Upload deal CSV/JSON first.</p>
             ) : null}
@@ -153,7 +156,9 @@ export default function DealsPage() {
               <CardTitle>Quarter Forecast</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {forecast.length > 0 ? forecast.map((item) => (
+              {isLoading ? (
+                <SkeletonPipelineRows count={3} />
+              ) : forecast.length > 0 ? forecast.map((item) => (
                 <div key={item.month}>
                   <div className="mb-1 flex justify-between text-xs text-slate-400">
                     <span>{item.month}</span>
@@ -175,7 +180,9 @@ export default function DealsPage() {
               <CardTitle>Status Breakdown</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {deals.length > 0 ? (
+              {isLoading ? (
+                <SkeletonCardRows count={4} />
+              ) : deals.length > 0 ? (
                 Object.entries(
                   deals.reduce<Record<string, number>>((acc, deal) => {
                     const status = deal.status || 'unknown';

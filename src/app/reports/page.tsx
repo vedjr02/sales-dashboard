@@ -28,10 +28,34 @@ export default function ReportsPage() {
 
   async function scheduleReport() {
     setLoadingAction('schedule-report');
-    const message = 'Report cadence scheduler opened.';
-    showToast('success', message);
-    await logActionEvent({ area: 'reports', action: 'schedule_report', status: 'success', detail: message });
-    setLoadingAction(null);
+    try {
+      const content = [
+        '# Report cadence (draft)',
+        '',
+        `- Created: ${new Date().toLocaleString()}`,
+        '- Weekly: Executive Revenue Pack → Monday 08:00',
+        '- Daily: Pipeline Risk Digest → Weekdays 07:30',
+        '- Monthly: Rep Performance Pulse → 1st of month',
+      ].join('\n');
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `report-cadence-${new Date().toISOString().slice(0, 10)}.md`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      const message = 'Cadence template downloaded. Scheduler checklist opened.';
+      showToast('success', message);
+      await logActionEvent({ area: 'reports', action: 'schedule_report', status: 'success', detail: message });
+    } catch {
+      const message = 'Could not prepare scheduler template.';
+      showToast('error', message);
+      await logActionEvent({ area: 'reports', action: 'schedule_report', status: 'error', detail: message });
+    } finally {
+      setLoadingAction(null);
+    }
   }
 
   async function createReport() {
@@ -123,8 +147,8 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody>
-                {exportsLog.map((row) => (
-                  <tr key={row.report + row.requestedBy} className="border-t border-slate-700/40 text-slate-200">
+                {exportsLog.map((row, index) => (
+                  <tr key={`${row.report}-${row.requestedBy}-${row.status}-${index}`} className="border-t border-slate-700/40 text-slate-200">
                     <td className="py-3">{row.report}</td>
                     <td className="py-3">{row.format}</td>
                     <td className="py-3">{row.requestedBy}</td>

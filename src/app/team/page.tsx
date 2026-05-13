@@ -59,10 +59,33 @@ export default function TeamPage() {
 
   async function assignGoal() {
     setLoadingAction('assign-goal');
-    const message = 'Goal assignment workflow started.';
-    showToast('success', message);
-    await logActionEvent({ area: 'team', action: 'assign_goal', status: 'success', detail: message });
-    setLoadingAction(null);
+    try {
+      const content = [
+        '# Team goals (draft)',
+        '',
+        `Updated: ${new Date().toLocaleString()}`,
+        '',
+        ...reps.map((rep) => `- ${rep.name}: stretch quota +5% vs current ${rep.quota}; focus win rate ${rep.winRate}`),
+      ].join('\n');
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `team-goals-${new Date().toISOString().slice(0, 10)}.md`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      const message = 'Goal worksheet downloaded.';
+      showToast('success', message);
+      await logActionEvent({ area: 'team', action: 'assign_goal', status: 'success', detail: message });
+    } catch {
+      const message = 'Could not start goal worksheet.';
+      showToast('error', message);
+      await logActionEvent({ area: 'team', action: 'assign_goal', status: 'error', detail: message });
+    } finally {
+      setLoadingAction(null);
+    }
   }
 
   async function openCoachingPlan() {

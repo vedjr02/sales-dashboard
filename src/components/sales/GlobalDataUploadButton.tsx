@@ -3,7 +3,10 @@
 import { useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Button } from '@/components/ui/Button';
+import { SkeletonText } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
+import { appendRowsFromParsedImport } from '@/lib/demoDataset';
+import { isDemoMode } from '@/lib/demoMode';
 import { parseDatasetFile } from '@/lib/dataImport';
 
 interface GlobalImportSummary {
@@ -28,6 +31,25 @@ export function GlobalDataUploadButton() {
 
     try {
       const parsed = await parseDatasetFile(file);
+
+      if (isDemoMode()) {
+        const result = appendRowsFromParsedImport(parsed.rows);
+        window.dispatchEvent(
+          new CustomEvent('sales-data-imported', {
+            detail: {
+              leads: { imported: result.addedLeads, skipped: 0 },
+              opportunities: { imported: result.addedOpportunities, skipped: 0 },
+              deals: { imported: result.addedDeals, skipped: 0 },
+              unknown: result.unknown,
+            },
+          })
+        );
+        showToast(
+          'success',
+          `Demo import: +${result.addedLeads} leads, +${result.addedOpportunities} opportunities, +${result.addedDeals} deals. Unknown rows: ${result.unknown}.`
+        );
+        return;
+      }
 
       const response = await fetch('/api/import/global', {
         method: 'POST',
@@ -98,6 +120,9 @@ export function GlobalDataUploadButton() {
             <p className="mt-2 text-sm text-slate-300">
               We are auto-detecting leads, opportunities, and deals from your file.
             </p>
+            <div className="mx-auto mt-6 max-w-sm text-left">
+              <SkeletonText lines={3} />
+            </div>
           </div>
         </div>
       ) : null}

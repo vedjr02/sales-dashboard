@@ -5,6 +5,7 @@ import { AppShell } from '@/components/ui/AppShell';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { SkeletonPills, SkeletonStatGrid, SkeletonTable } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { logActionEvent } from '@/services/actionEvents';
 import { SalesService } from '@/services/sales';
@@ -127,7 +128,9 @@ export default function LeadsPage() {
             <CardTitle>Lead Sources</CardTitle>
           </CardHeader>
           <CardContent>
-            {sourceSummary.length > 0 ? (
+            {isLoading ? (
+              <SkeletonStatGrid cells={4} />
+            ) : sourceSummary.length > 0 ? (
               <div className="grid gap-3 sm:grid-cols-2">
                 {sourceSummary.map((item) => (
                   <div key={item.source} className="rounded-xl border border-slate-700/50 bg-slate-900/35 p-4">
@@ -160,7 +163,12 @@ export default function LeadsPage() {
           <CardTitle>Lead Workbench</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? <p className="text-sm text-slate-400">Loading lead data...</p> : null}
+          {isLoading ? (
+            <div className="space-y-4">
+              <SkeletonPills count={6} />
+              <SkeletonTable columns={7} rows={8} />
+            </div>
+          ) : null}
           {!isLoading && leads.length === 0 ? (
             <p className="text-sm text-slate-400">No data to represent here yet. Upload lead CSV/JSON to populate this view.</p>
           ) : null}

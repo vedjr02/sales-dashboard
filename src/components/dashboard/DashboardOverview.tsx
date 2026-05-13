@@ -5,6 +5,7 @@ import { KPICard } from './KPICard';
 import { RevenueChart } from './RevenueChart';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { SkeletonActivityList, SkeletonPipelineRows } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { SalesService } from '@/services/sales';
 import { logActionEvent } from '@/services/actionEvents';
@@ -174,8 +175,8 @@ export function DashboardOverview() {
             <p className="mt-1 text-sm text-slate-300">Realtime pipeline performance, risk and momentum in one view.</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleShareSnapshot} isLoading={loadingAction === 'share-snapshot'}>Share Snapshot</Button>
-            <Button size="sm" onClick={handleCreateBriefing} isLoading={loadingAction === 'create-briefing'}>Create Briefing</Button>
+            <Button variant="outline" size="sm" onClick={handleShareSnapshot} isLoading={loadingAction === 'share-snapshot'} disabled={loading}>Share Snapshot</Button>
+            <Button size="sm" onClick={handleCreateBriefing} isLoading={loadingAction === 'create-briefing'} disabled={loading}>Create Briefing</Button>
           </div>
         </div>
       </div>
@@ -216,6 +217,7 @@ export function DashboardOverview() {
             title="Revenue Trend"
             type="line"
             height={300}
+            loading={loading}
           />
         </div>
 
@@ -225,6 +227,9 @@ export function DashboardOverview() {
             <CardTitle>Pipeline Overview</CardTitle>
           </CardHeader>
           <CardContent>
+            {loading ? (
+              <SkeletonPipelineRows count={4} />
+            ) : pipelineData.length > 0 ? (
             <div className="space-y-4">
               {pipelineData.map((stage) => (
                 <div key={stage.name}>
@@ -242,6 +247,9 @@ export function DashboardOverview() {
                 </div>
               ))}
             </div>
+            ) : (
+              <p className="text-sm text-slate-400">No open pipeline data yet.</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -255,12 +263,16 @@ export function DashboardOverview() {
               variant="outline"
               size="sm"
               onClick={() => setShowAllActivity((prev) => !prev)}
+              disabled={loading || recentActivity.length === 0}
             >
               {showAllActivity ? 'Show Less' : 'View All'}
             </Button>
           </div>
         </CardHeader>
         <CardContent>
+          {loading ? (
+            <SkeletonActivityList count={4} />
+          ) : visibleActivity.length > 0 ? (
           <div className="space-y-4">
             {visibleActivity.map((activity) => (
               <div key={activity.id} className="flex items-center rounded-xl border border-slate-700/50 bg-slate-900/35 px-4 py-3">
@@ -274,6 +286,9 @@ export function DashboardOverview() {
               </div>
             ))}
           </div>
+          ) : (
+            <p className="text-sm text-slate-400">No recent activity to show.</p>
+          )}
         </CardContent>
       </Card>
     </div>

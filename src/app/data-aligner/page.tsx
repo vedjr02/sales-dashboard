@@ -6,8 +6,11 @@ import { AppShell } from '@/components/ui/AppShell';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { SkeletonPreviewTable, SkeletonSummaryLines } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/ToastProvider';
 import { detectEntityForRow, mapImportRow, parseDatasetFile } from '@/lib/dataImport';
+import { appendAlignedRecords } from '@/lib/demoDataset';
+import { isDemoMode } from '@/lib/demoMode';
 
 type AlignedRecord = Record<string, unknown>;
 
@@ -96,6 +99,20 @@ export default function DataAlignerPage() {
   async function uploadAlignedData(payload: AlignedPayload) {
     setIsUploading(true);
     try {
+      if (isDemoMode()) {
+        const result = appendAlignedRecords({
+          leads: payload.leads,
+          opportunities: payload.opportunities,
+          deals: payload.deals,
+        });
+        window.dispatchEvent(new CustomEvent('sales-data-imported'));
+        showToast(
+          'success',
+          `Demo upload: +${result.addedLeads} leads, +${result.addedOpportunities} opportunities, +${result.addedDeals} deals.`
+        );
+        return;
+      }
+
       const response = await fetch('/api/import/aligned', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -230,7 +247,9 @@ export default function DataAlignerPage() {
             <CardTitle>Alignment Summary</CardTitle>
           </CardHeader>
           <CardContent>
-            {!summary ? (
+            {isAligning || isUploading ? (
+              <SkeletonSummaryLines count={8} />
+            ) : !summary ? (
               <p className="text-sm text-slate-400">No file processed yet.</p>
             ) : (
               <div className="space-y-2 text-sm text-slate-200">
@@ -253,7 +272,9 @@ export default function DataAlignerPage() {
           <CardTitle>Aligned Preview</CardTitle>
         </CardHeader>
         <CardContent>
-          {previewRows.length === 0 ? (
+          {isAligning || isUploading ? (
+            <SkeletonPreviewTable rows={isUploading ? 3 : 5} />
+          ) : previewRows.length === 0 ? (
             <p className="text-sm text-slate-400">Upload a file to preview aligned records.</p>
           ) : (
             <div className="overflow-x-auto">
